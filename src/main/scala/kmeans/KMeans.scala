@@ -40,7 +40,10 @@ class KMeans extends KMeansInterface:
     closest
 
   def classify(points: ParSeq[Point], means: ParSeq[Point]): ParMap[Point, ParSeq[Point]] =
-    ???
+    // group each point by the mean. Should be enough, but needs to return empty lists for unused means
+    val pointsMeanMap = points.par.groupBy(findClosest(_, means))
+    // So iterate over means get (empty) list and return map
+    means.par.map(mean => mean -> pointsMeanMap.getOrElse(mean, ParSeq())).toMap
 
   def findAverage(oldMean: Point, points: ParSeq[Point]): Point = if points.isEmpty then oldMean else
     var x = 0.0
@@ -54,14 +57,19 @@ class KMeans extends KMeansInterface:
     Point(x / points.length, y / points.length, z / points.length)
 
   def update(classified: ParMap[Point, ParSeq[Point]], oldMeans: ParSeq[Point]): ParSeq[Point] =
-    ???
+    for (om <- oldMeans) yield findAverage(om, classified(om))
 
   def converged(eta: Double, oldMeans: ParSeq[Point], newMeans: ParSeq[Point]): Boolean =
-    ???
+    val accumulator = for(i <- (0 until oldMeans.size))
+      yield oldMeans(i).squareDistance(newMeans(i)) <= eta
+    accumulator.foldLeft(true)((b1,b2) => b1 && b2)
 
   @tailrec
   final def kMeans(points: ParSeq[Point], means: ParSeq[Point], eta: Double): ParSeq[Point] =
-    if (???) kMeans(???, ???, ???) else ??? // your implementation need to be tail recursive
+    val classified = classify(points, means)
+    val newMeans = update(classified, means)
+
+    if (!converged(eta, means, newMeans)) kMeans(points, newMeans, eta) else newMeans
 
 /** Describes one point in three-dimensional space.
  *
@@ -122,3 +130,4 @@ object KMeansRunner:
     println(s"sequential time: $seqtime")
     println(s"parallel time: $partime")
     println(s"speedup: ${seqtime.value / partime.value}")
+
